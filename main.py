@@ -10,8 +10,11 @@ BASE = "https://www.achmeainvestmentmanagement.nl"
 PAGE = f"{BASE}/particulier/beleggingsfondsen/koersen"
 API = f"{BASE}/apiproxy/FundRates/RetrieveAllRatesForFundsInFundGroup"
 FUND_GROUP = "ODV"
-FUND_CODE = "GOA"  # Achmea opkomende markten aandelen fonds A
-OUT = "AchmeaOpkomendeMarkten.json"
+# fund code -> output file
+FUNDS = {
+    "GOA": "AchmeaOpkomendeMarkten.json",  # Achmea opkomende markten aandelen fonds A
+    "GWA": "AchmeaWereldwijdAandelen.json",  # Achmea wereldwijd aandelen fonds A
+}
 STALE_DAYS = 7  # warn if the newest rate is older than this
 
 # Request body as sent by the browser (confirmed via devtools).
@@ -149,23 +152,14 @@ def fetch_rates(session, token):
                    f"Content-Type: {r.headers.get('content-type')}", r)
 
 
-def main():
-    session = requests.Session()
-    token = get_token(session)
-    data_remote = fetch_rates(session, token)
-
-    step = "Parse response"
-    funds = data_remote.get("funds") if isinstance(data_remote, dict) else None
-    if not funds:
-        fail(step, "JSON has no 'funds' list. Top-level keys: "
-                   f"{list(data_remote)[:20] if isinstance(data_remote, dict) else type(data_remote).__name__}")
-
-    fund = next((f for f in funds if f.get("fundCode") == FUND_CODE), None)
+def write_fund(funds, fund_code, out):
+    step = f"Parse response ({fund_code})"
+    fund = next((f for f in funds if f.get("fundCode") == fund_code), None)
     if not fund:
         codes = ", ".join(str(f.get("fundCode")) for f in funds)
-        fail(step, f"Fund {FUND_CODE} not in response. Available codes: {codes}")
+        fail(step, f"Fund {fund_code} not in response. Available codes: {codes}")
     if not fund.get("rates"):
-        fail(step, f"Fund {FUND_CODE} has no rates.")
+        fail(step, f"Fund {fund_code} has no rates.")
 
     by_date = {}
     for i, item in enumerate(fund["rates"]):
@@ -180,23 +174,37 @@ def main():
     newest = rates[-1]["Date"]
     age = (datetime.date.today() - datetime.date.fromisoformat(newest)).days
     if age > STALE_DAYS:
-        warn("Stale data", f"Newest {FUND_CODE} rate is {newest} ({age} days old).")
+        warn("Stale data", f"Newest {fund_code} rate is {newest} ({age} days old).")
 
     data_out = {
-        "fund": fund.get("fundTitle", FUND_CODE),
+        "fund": fund.get("fundTitle", fund_code),
         "lastUpdated": datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
         "rates": rates,
     }
 
     try:
-        with open(OUT, "w") as f:
+        with open(out, "w") as f:
             json.dump(data_out, f, indent=4)
     except OSError as e:
-        fail("Write output", f"Could not write {OUT}: {e}")
+        fail("Write output", f"Could not write {out}: {e}")
 
     dupes = len(fund["rates"]) - len(by_date)
-    print(f"OK: {len(rates)} rates written to {OUT} "
+    print(f"OK: {len(rates)} rates written to {out} "
           f"(range {rates[0]['Date']} to {newest}, {dupes} duplicates removed)")
+
+
+def main():
+    session = requests.Session()
+    token = get_token(session)
+    data_remote = fetch_rates(session, token)
+
+    funds = data_remote.get("funds") if isinstance(data_remote, dict) else None
+    if not funds:
+        fail("Parse response", "JSON has no 'funds' list. Top-level keys: "
+                               f"{list(data_remote)[:20] if isinstance(data_remote, dict) else type(data_remote).__name__}")
+
+    for fund_code, out in FUNDS.items():
+        write_fund(funds, fund_code, out)
 
 
 if __name__ == "__main__":
