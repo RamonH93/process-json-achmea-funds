@@ -1,11 +1,7 @@
 {
     "fund": "Achmea wereldwijd aandelen fonds A",
-    "lastUpdated": "2026-10-20 14:53",
+    "lastUpdated": "2026-10-21 15:00",
     "rates": [
-        {
-            "Date": "2021-10-20",
-            "CloseQuote": "42.2"
-        },
         {
             "Date": "2021-10-21",
             "CloseQuote": "42.28"
@@ -5121,6 +5117,10 @@
         {
             "Date": "2026-10-20",
             "CloseQuote": "67.47"
+        },
+        {
+            "Date": "2026-10-21",
+            "CloseQuote": "67.65"
         }
     ]
 }
